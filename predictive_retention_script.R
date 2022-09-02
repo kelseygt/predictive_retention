@@ -1,7 +1,7 @@
 # predictive retention model
 
 ###################################################################################################
-# The below script is MSU Denver's predictive retention ensemble model, in which three models are #
+# The below script is XXXXXXXXXX's predictive retention ensemble model, in which three models are #
 # created for designated subgroups in order to predict the likelihood of a student retaining.     #
 # The script below has been abstracted in order to allow room for future model development.       #
 ###################################################################################################
