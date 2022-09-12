@@ -16,6 +16,7 @@ load_packages <- function() {
   library(vip)
   library(tictoc)
   library(svDialogs)
+  library(dplyr)
   options(scipen = 999)
 }
 load_packages()
@@ -67,21 +68,31 @@ get_data <- function() {
   return(list(calib_data = calib_data, pred_data = pred_data))
 }
 
-prep_data <- function(calib_data, pred_data, group) {
+# this is the only function that needs to be modified, should you choose to change the groups.
+# the functions simply needs to output the column name being used for grouping purposes, and a
+# list of the groups themselves.
+create_groups <- function(calib_data) {
+  calib_data$CLUSTER <- as.factor(calib_data$CLUSTER)
+  groups <- as.list(levels(calib_data$CLUSTER))
+  groups_column <- "CLUSTER"
+  return(list(groups = groups, groups_column = groups_column))
+}
+
+prep_data <- function(calib_data, pred_data, group, groups_column) {
   # subsetting the calibration data
   df_calib <- calib_data %>%
-    subset(STUDENT_CLASSIF == group)
+    subset(get(groups_column) == group)
   # subsetting the predictive data
   df_pred <- pred_data %>%
-    subset(STUDENT_CLASSIF == group) %>%
-    subset(select = -c(MIN_REGIST_YEAR, STUDENT_CLASSIF, PIDM, TERM))
+    subset(get(groups_column) == group) %>%
+    subset(select = -c(MIN_REGIST_YEAR, get(groups_column), PIDM, TERM))
   # splitting into testing and training
   indxTrain <- createDataPartition(y = df_calib$RETAINED, p = 0.7, list = FALSE)    
   training <- df_calib[indxTrain, ] %>%
-    subset(select = -c(MIN_REGIST_YEAR, STUDENT_CLASSIF, PIDM, TERM))
+    subset(select = -c(MIN_REGIST_YEAR, get(groups_column), PIDM, TERM))
   testing_all <- df_calib[-indxTrain, ]
   testing <- df_calib[-indxTrain, ] %>%
-    subset(select = -c(MIN_REGIST_YEAR, STUDENT_CLASSIF, PIDM, TERM))
+    subset(select = -c(MIN_REGIST_YEAR, get(groups_column), PIDM, TERM))
   x = training %>% subset(select = -RETAINED)
   y = training$RETAINED
   return(list(df_calib = df_calib, df_pred = df_pred, training = training, testing = testing, testing_all = testing_all, x = x, y = y))
@@ -229,8 +240,11 @@ main <- function() {
   pred_data <- working_data$pred_data
   
   # creating our model subsets
+  groups_data <- create_groups(calib_data)
+  groups <- groups_data$groups
+  groups_column <- groups_data$groups_column
+  
   # setting the decision rule threshold, adabag threshold, and export file names
-  groups <- as.list(levels(calib_data$STUDENT_CLASSIF))
   dr_threshold <- 0.65
   adabag_threshold <- 0.6
   file_name <- sprintf("%s_%s.csv", unique(pred_data$TERM), format(Sys.Date(), "%m%d%y"))
@@ -247,7 +261,7 @@ main <- function() {
   for (group in groups) {
     print(noquote(paste("Running models on group:", group, sep = " ")))
     # bringing in the subsetted data (sd)
-    sd <- prep_data(calib_data, pred_data, group)
+    sd <- prep_data(calib_data, pred_data, group, groups_column)
     testing_all <- sd$testing_all
     # running models
     tic(sprintf("[1] %s group run time", group))
