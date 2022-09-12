@@ -1,32 +1,34 @@
 # predictive retention model
 
 ###################################################################################################
-# The below script is XXXXXXXXXX's predictive retention ensemble model, in which three models are #
+# The below script is MSU Denver's predictive retention ensemble model, in which three models are #
 # created for designated subgroups in order to predict the likelihood of a student retaining.     #
 # The script below has been abstracted in order to allow room for future model development.       #
 ###################################################################################################
 
 # loading packages / disabling scientific notation for the summary stats
-library(caret)
-library(ranger)
-library(ggplot2)
-library(adabag)
-library(klaR)
-library(vip)
-library(tictoc)
-library(svDialogs)
-options(scipen = 999)
+load_packages <- function() {
+  library(caret)
+  library(ranger)
+  library(ggplot2)
+  library(adabag)
+  library(klaR)
+  library(vip)
+  library(tictoc)
+  library(svDialogs)
+  options(scipen = 999)
+}
+load_packages()
 
 # sets testing working directory and automatically loads in testing data sets if set to TRUE.
 # if FALSE prompts you for location of files to load in, and sets working directory to parent folder.
 # also modifies the random forest parameters to function on a small testing data set if TRUE.
 DEBUG <- F
 if (DEBUG) {
-  setwd("C:/Users/Laserbeams/Desktop/predictive_model_optimization/testing")
+  setwd("C:/Users/Laserbeams/Desktop/predictive_model_testing")
   RF_MTRY <- 1
 } else {
-  # setwd("C:/Users/Laserbeams/Desktop/predictive_model_optimization/results")
-  setwd("C:/Users/Laserbeams/Desktop/202230_to_202330/081522/including_interventions")
+  setwd("C:/Users/Laserbeams/Desktop/results")
   RF_MTRY <- 3
 }
 
@@ -42,11 +44,17 @@ get_data <- function() {
     pred_data <- read.csv(file.choose(), header = T, stringsAsFactors = T)
   }
   # what to do with treatment population
-  intervention_choice <- dlgInput("Do you want to exclude the intervention population (Y or N)?")
+  intervention_choice <- dlgInput("Do you want to exclude the intervention population (Y or N)?")$res
   if (intervention_choice == 'Y') {
     calib_data <- calib_data %>% 
       subset(INTERVENTION == 'N') %>%
       subset(select = -c(INTERVENTION))
+  }
+  # option to trim the calibration data
+  trim_choice <- dlgInput("At which point in time (i.e. term code) do you want to start the calibration data? (Select cancel if you want all data included.)")$res
+  if (length(trim_choice) > 0) {
+    calib_data <- calib_data %>% 
+      subset(TERM >= as.numeric(trim_choice))
   }
   # formatting calibration / predictive data
   calib_data$MIN_REGIST_YEAR <- as.factor(calib_data$MIN_REGIST_YEAR)
@@ -278,4 +286,4 @@ main <- function() {
   toc()
 }
 
-main()
+main() # load calibration first, then prediction
