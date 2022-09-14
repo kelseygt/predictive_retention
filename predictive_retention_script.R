@@ -1,25 +1,10 @@
 # predictive retention model
 
 ###################################################################################################
-# The below script is MSU Denver's predictive retention ensemble model, in which three models are #
+# The below script is XXXXXXXXXX's predictive retention ensemble model, in which three models are #
 # created for designated subgroups in order to predict the likelihood of a student retaining.     #
 # The script below has been abstracted in order to allow room for future model development.       #
 ###################################################################################################
-
-# loading packages / disabling scientific notation for the summary stats
-load_packages <- function() {
-  library(caret)
-  library(ranger)
-  library(ggplot2)
-  library(adabag)
-  library(klaR)
-  library(vip)
-  library(tictoc)
-  library(svDialogs)
-  library(dplyr)
-  options(scipen = 999)
-}
-load_packages()
 
 # sets testing working directory and automatically loads in testing data sets if set to TRUE.
 # if FALSE prompts you for location of files to load in, and sets working directory to parent folder.
@@ -34,6 +19,20 @@ if (DEBUG) {
 }
 
 # creating functions
+
+# loading packages / disabling scientific notation for the summary stats
+load_packages <- function() {
+  library(caret)
+  library(ranger)
+  library(ggplot2)
+  library(adabag)
+  library(klaR)
+  library(vip)
+  library(tictoc)
+  library(svDialogs)
+  library(dplyr)
+  options(scipen = 999)
+}
 
 get_data <- function() {
   # importing calibration and prediction data
@@ -69,8 +68,8 @@ get_data <- function() {
 }
 
 # this is the only function that needs to be modified, should you choose to change the groups.
-# the functions simply needs to output the column name being used for grouping purposes, and a
-# list of the groups themselves.
+# the function simply needs to output 1) the column name being used for grouping purposes, and 
+# 2) a list of the groups themselves.
 create_groups <- function(calib_data) {
   calib_data$CLUSTER <- as.factor(calib_data$CLUSTER)
   groups <- as.list(levels(calib_data$CLUSTER))
@@ -186,7 +185,7 @@ export_stats <- function(conf_matrices, file_name) {
     write.csv(file = paste("summary_stats", file_name, sep = "_"), row.names = T) 
 }
 
-export_predictions <- function(predictions, pred_data, dr_threshold, file_name) {
+export_predictions <- function(predictions, pred_data, dr_threshold, file_name, groups_column) {
   # creating empty data frame for the final data set
   final_predictions <- setNames(data.frame(matrix(ncol = ncol(pred_data) + 7, nrow = 0)),
                                 c(colnames(pred_data), "nb_binary", "nb_prob$Y", "rf_binary$predictions", 
@@ -198,7 +197,7 @@ export_predictions <- function(predictions, pred_data, dr_threshold, file_name) 
     dr3 <- as.factor(ifelse(as.numeric(predictions[[group]]$nb_prob$Y > dr_threshold) & (predictions[[group]]$rf_binary$predictions == "Y") & 
                               (predictions[[group]]$ad_binary$class == "Y"), "Y","N"))
     # recompiling original feeder data + predictions, and adding to final data frame
-    df_pred_subset <- subset(pred_data, STUDENT_CLASSIF == group)
+    df_pred_subset <- subset(pred_data, get(groups_column) == group)
     recombo <- cbind(df_pred_subset, 
                      nb_binary = predictions[[group]]$nb_binary, 
                      nb_prob = predictions[[group]]$nb_prob$Y, 
@@ -211,14 +210,14 @@ export_predictions <- function(predictions, pred_data, dr_threshold, file_name) 
   write.csv(final_predictions, file = paste("final_predictions", file_name, sep = "_"), row.names = F)
 }
 
-testing_predictions <- function(testing_all, dr_threshold, nb_out, rf_out, ad_out, group) {
+testing_predictions <- function(testing_all, dr_threshold, nb_out, rf_out, ad_out, group, groups_column) {
     # decision rules
     dr1 <- as.factor(ifelse(as.numeric(nb_out$probabilities$Y > dr_threshold) & (rf_out$rf_result$predictions == "Y"), "Y","N"))
     dr2 <- as.factor(ifelse(as.numeric(nb_out$probabilities$Y > dr_threshold) | (rf_out$rf_result$predictions == "Y"), "Y","N"))
     dr3 <- as.factor(ifelse(as.numeric(nb_out$probabilities$Y > dr_threshold) & (rf_out$rf_result$predictions == "Y") & 
                                       (ad_out$adabag_result$class == "Y"), "Y","N"))
     # recompiling original feeder data + predictions, and adding to final data frame
-    df_testing_subset <- subset(testing_all, STUDENT_CLASSIF == group)
+    df_testing_subset <- subset(testing_all, get(groups_column) == group)
     recombo <- cbind(df_testing_subset, 
                      nb_binary = nb_out$nb_result, 
                      nb_prob = nb_out$probabilities, 
@@ -232,6 +231,7 @@ testing_predictions <- function(testing_all, dr_threshold, nb_out, rf_out, ad_ou
 # final predictive function
 
 main <- function() {
+  load_packages()
   tic("[1] Total run time")
   
   # loading in data
@@ -277,7 +277,7 @@ main <- function() {
                           paste("ad", adabag_threshold, group, sep = "_"))
     conf_matrices <- append(conf_matrices, temp_list)
     # compiling testing prediction results
-    testing_results <- testing_predictions(testing_all, dr_threshold, nb_out, rf_out, ad_out, group)
+    testing_results <- testing_predictions(testing_all, dr_threshold, nb_out, rf_out, ad_out, group, groups_column)
     final_testing_predictions <- rbind(final_testing_predictions, testing_results$recombo)
     # compiling prediction results
     temp_list <- list(list(nb_prob = nb_out$nb_prob, 
@@ -292,7 +292,7 @@ main <- function() {
   
   # exporting final csvs
   export_stats(conf_matrices, file_name)
-  export_predictions(predictions, pred_data, dr_threshold, file_name)
+  export_predictions(predictions, pred_data, dr_threshold, file_name, groups_column)
   # exporting final predictions
   write.csv(final_testing_predictions, file = paste("final_testing_predictions", file_name, sep = "_"), row.names = F)
   
